@@ -16,8 +16,8 @@ Screenshot:
 
 
 ## Usage:
-```from vic import vic
-vic.interact(locals())```
+`from vic import vic
+vic.interact(locals())`
 
 
 Install from URL:
