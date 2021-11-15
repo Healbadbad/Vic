@@ -151,6 +151,7 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
     detailed_info_height = 20
     focused_object_name = now_locals_names[-1]
     focused_object_path = [focused_object_name]
+    focused_object = locals[focused_object_name]
 
     layout = generate_layout(focused_object_name, ignore_builtins, show_tensors)
 
@@ -259,6 +260,7 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
         else:
             focused_object_name = event
             focused_object_path = [focused_object_name]
+            focused_object = locals[focused_object_name]
             # Only update These if the buttons were selected
             attributes_list, functions = get_attributes_list(locals[focused_object_name])
             window['attributes'].update(attributes_list)
@@ -274,6 +276,15 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
         # Import cv2 or matplotlib to show and display tensors 
         # that can be formatted as gray or RGB images
         if show_tensors:
+            # Check to see if it is a PIL Image
+            if hasattr(focused_object, "mode") and hasattr(focused_object, "mode"):
+                import matplotlib.pyplot as plt
+                plt.imshow(focused_object)
+                plt.show()
+                continue
+                
+
+
             if hasattr(locals[event], "T"):
                 # Is a torch or numpy array
                 displayable = False
