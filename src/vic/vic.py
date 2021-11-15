@@ -111,6 +111,11 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
 
     functions_list_key = "functions_list"
     def generate_layout(focused_object_name, ignore_builtins=False, show_tensors=False):
+        interact_textbox = sg.Input(key='interact-textbox')
+        execute_button = sg.Button('Execute', key='execute-button')
+        builtins_checkbox = sg.Checkbox("Show Builtins", not ignore_builtins, key="show-builtins", enable_events=True)
+        show_tensors_checkbox = sg.Checkbox("Show Tensors", show_tensors, key="show-tensors", enable_events=True)
+
         modules, local_vars, functions = get_locals_buttons(ignore_builtins)
         props, funs = get_attributes_list(focused_object_name)
         locals_layout = [[sg.Column(modules, key="modules-column"), sg.Column(local_vars, key="local-vars-column"), sg.Column(functions, key='functions-column'),]]
@@ -132,10 +137,6 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
         variable_frame = sg.Frame('Variable Info', [[var_value]], key='var_name')
         docstring_box = sg.Frame('Docstring',[[docstring_textbox]])
 
-        interact_textbox = sg.Input(key='interact-textbox')
-        execute_button = sg.Button('Execute', key='execute-button')
-        builtins_checkbox = sg.Checkbox("Show Builtins", not ignore_builtins, key="show-builtins", enable_events=True)
-        show_tensors_checkbox = sg.Checkbox("Show Tensors", show_tensors, key="show-tensors", enable_events=True)
 
 
         layout = [ [sg.Button("EXIT"), sg.Text('Locals'), builtins_checkbox, show_tensors_checkbox, interact_textbox, execute_button],
@@ -231,13 +232,11 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
             continue
         if event == "inspect-attribute":
             # focused_object_name = event
-            print("start focused_object_path: ", focused_object_path)
             if len(values['attributes']) < 1:
                 print("No attribute selected")
                 continue
             attribute_name = values['attributes'][0].split(':')[0]
             focused_object_path.append(attribute_name)
-            print("end focused_object_path: ", focused_object_path)
             focused_object = locals[focused_object_path[0]]
             path_str = focused_object_path[0]
             if len(focused_object_path) > 1:
@@ -295,11 +294,21 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
                         if max(tensor.shape) < 352:
                             scale_factor = 352 / max(tensor.shape)
                             newshape = (int(tensor.shape[0] *scale_factor), int(tensor.shape[1] * scale_factor))
-                            resized = cv2.resize(tensor.unsqueeze(-1).cpu().detach().numpy(), newshape, interpolation=cv2.INTER_NEAREST)
+                            to_resize = None
+                            if is_torch_T:
+                                to_resize = tensor.unsqueeze(-1).cpu().detach().numpy()
+                            else:
+                                to_resize = tensor
+
+                            resized = cv2.resize(to_resize, newshape, interpolation=cv2.INTER_NEAREST)
                             # cv2.imshow(f'Tensor-{event}', resized)
                             to_display = resized
                         else:
-                            to_display = tensor.unsqueeze(-1).cpu().detach().numpy()
+                            if is_torch_T:
+                                to_display = tensor.unsqueeze(-1).cpu().detach().numpy()
+                            else:
+                                import numpy as np
+                                to_display = np.expand_dims(tensor, -1)
                         displayable = True
 
                             # cv2.imshow(f'Tensor-{event}', tensor.unsqueeze(-1).cpu().detach().numpy())
