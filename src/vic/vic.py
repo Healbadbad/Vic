@@ -279,6 +279,9 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
             # Check to see if it is a PIL Image
             if hasattr(focused_object, "mode") and hasattr(focused_object, "mode"):
                 import matplotlib.pyplot as plt
+                fig = plt.figure()
+                fig.suptitle(f'PIL-Image: {focused_object_name}', fontsize=20)
+
                 plt.imshow(focused_object)
                 plt.show()
                 continue
@@ -344,6 +347,8 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
                         cv2.imshow(f'Tensor-{event}', to_display)
                     except:
                         import matplotlib.pyplot as plt
+                        fig = plt.figure()
+                        fig.suptitle(f'Tensor: {focused_object_name}', fontsize=20)
                         plt.imshow(to_display)
                         plt.show()
 
