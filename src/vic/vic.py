@@ -326,9 +326,15 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
                     continue
                 
                 # Select display method
+
                 if True and displayable: 
-                    import cv2
-                    cv2.imshow(f'Tensor-{event}', to_display)
+                    try:
+                        import cv2
+                        cv2.imshow(f'Tensor-{event}', to_display)
+                    except:
+                        import matplotlib.pyplot as plt
+                        plt.imshow(to_display)
+                        plt.show()
 
                 print("")
 
