@@ -16,16 +16,46 @@
 #   # These button clicks can be recorded in a selectable text box, output as raw python code that can be copied  
 #   # exit button allows the program to continue running, and the window wont pop up again until an error is caught
 
-# TODO: Right click on an attribute to add it to the list of locals that can be explored 
+# DONE: 
+# Right click on an attribute to add it to the list of locals that can be explored 
+
+
+# TODO:
+# Dictionary / list explorer
 
 import PySimpleGUI as sg
 import inspect
 import traceback
+import fuzzywuzzy
+from fuzzywuzzy import fuzz
 
 sg.theme('DarkAmber')   # Add a touch of color
 
+def get_attributes_list(var, ignore_builtins=True):
+    variable_properties = []
+    callables = []
+    prop_values = []
+    for i, prop in enumerate(dir(var)):
+        if prop.startswith('__') and ignore_builtins:
+            continue
 
-def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=False):
+        try:
+            is_callable = callable(getattr(var, prop))
+        except Exception as e:
+            callables.append(f"{prop}: {Exception}")
+            continue
+
+        if is_callable:
+            callables.append(f"{prop}: {type(getattr(var, prop))}")
+        else:
+            try:
+                variable_properties.append(f"{prop}: {getattr(var, prop)}")
+            except Exception as e:
+                variable_properties.append(f"{prop}: {Exception}")
+
+    return variable_properties, callables
+
+def interact(locals, do_traceback=False, ignore_builtins=True, show_tensors=False):
     """ Open a PySimpleGUI window displaying
         local modules, objects, and callables.
 
@@ -85,29 +115,6 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
         return modules, local_vars, functions
 
 
-    def get_attributes_list(var):
-        variable_properties = []
-        callables = []
-        prop_values = []
-        for i, prop in enumerate(dir(var)):
-            if prop.startswith('__') and ignore_builtins:
-                continue
-
-            try:
-                is_callable = callable(getattr(var, prop))
-            except Exception as e:
-                callables.append(f"{prop}: {Exception}")
-                continue
-
-            if is_callable:
-                callables.append(f"{prop}: {type(getattr(var, prop))}")
-            else:
-                try:
-                    variable_properties.append(f"{prop}: {getattr(var, prop)}")
-                except Exception as e:
-                    variable_properties.append(f"{prop}: {Exception}")
-
-        return variable_properties, callables
 
     functions_list_key = "functions_list"
     def generate_layout(focused_object_name, ignore_builtins=False, show_tensors=False):
@@ -117,15 +124,18 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
         show_tensors_checkbox = sg.Checkbox("Show Tensors", show_tensors, key="show-tensors", enable_events=True)
 
         modules, local_vars, functions = get_locals_buttons(ignore_builtins)
-        props, funs = get_attributes_list(focused_object_name)
+        props, funs = get_attributes_list(focused_object_name, ignore_builtins)
         locals_layout = [[sg.Column(modules, key="modules-column"), sg.Column(local_vars, key="local-vars-column"), sg.Column(functions, key='functions-column'),]]
         locals_column = sg.Frame("Local objects", [[sg.Column(locals_layout, scrollable=True, expand_x=True, expand_y=True)]], size=(80,30), expand_x=True, expand_y=True )
 
 
         attributes_right_click_menu = ['Attr', ['inspect-attribute']]
+        attributes_searchbox = sg.Input(key='attributes-search', enable_events=True)
         attributes_listbox = sg.Listbox(props, size=(80, 30), key='attributes', right_click_menu=attributes_right_click_menu)
+        
 
         functions_listbox_size = (50, 30)
+        functions_searchbox = sg.Input(key='functions-search', enable_events=True)
         functions_listbox = sg.Listbox(funs, size=functions_listbox_size, key=functions_list_key, enable_events=True)
 
         docstring_textbox_size = (80, detailed_info_height)
@@ -140,7 +150,7 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
 
 
         layout = [ [sg.Button("EXIT"), sg.Text('Locals'), builtins_checkbox, show_tensors_checkbox, interact_textbox, execute_button],
-            [sg.Text('Modules'), sg.Text('Objects'), sg.Text('Callables')],
+            [sg.Text('Modules'), sg.Text('Objects'), sg.Text('Callables'), attributes_searchbox, functions_searchbox],
             [locals_column, attributes_listbox, functions_listbox],
             [variable_frame, docstring_box],
                 ]
@@ -231,6 +241,42 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
                 print("Exception {Exception}")
                 print(e)
             continue
+        elif event == "attributes-search":
+
+            # print(window['attributes'])
+            query = values['attributes-search']
+            scores = []
+            attribute_strings, funs = get_attributes_list(focused_object)
+            # window['attributes'].get_list_values()
+            for attr_string in attribute_strings:
+                score = fuzz.token_set_ratio(query, attr_string)
+                scores.append(score)
+            print(scores)
+            sorted_results = sorted(zip(attribute_strings, scores), key=lambda x: x[1], reverse=True)
+            # print(sorted_strs)
+            # print(sorted_strs)
+            sorted_attr_strings = list(zip(*sorted_results))[0]
+            print(sorted_attr_strings)
+            window['attributes'].update(sorted_attr_strings)
+
+            continue
+        elif event == "functions-search":
+            print(window['attributes'])
+            query = values['functions-search']
+            scores = []
+            attribute_strings, funs = get_attributes_list(focused_object)
+            # window['attributes'].get_list_values()
+            for attr_string in funs:
+                score = fuzz.token_set_ratio(query, attr_string.split(":")[0])
+                scores.append(score)
+            print(scores)
+            sorted_results = sorted(zip(funs, scores), key=lambda x: x[1], reverse=True)
+            # print(sorted_strs)
+            # print(sorted_strs)
+            sorted_attr_strings = list(zip(*sorted_results))[0]
+            print(sorted_attr_strings)
+            window[functions_list_key].update(sorted_attr_strings)
+            continue
         if event == "inspect-attribute":
             # focused_object_name = event
             if len(values['attributes']) < 1:
@@ -246,7 +292,7 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
                     path_str = f"{path_str}.{attr_name}"
 
             # Only update These if the buttons were selected
-            attributes_list, functions = get_attributes_list(focused_object)
+            attributes_list, functions = get_attributes_list(focused_object, ignore_builtins)
             window['attributes'].update(attributes_list)
             window['functions_list'].update(functions)
 
@@ -262,7 +308,7 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
             focused_object_path = [focused_object_name]
             focused_object = locals[focused_object_name]
             # Only update These if the buttons were selected
-            attributes_list, functions = get_attributes_list(locals[focused_object_name])
+            attributes_list, functions = get_attributes_list(locals[focused_object_name], ignore_builtins)
             window['attributes'].update(attributes_list)
             window['functions_list'].update(functions)
             window['var_name'].update(focused_object_name)
@@ -277,7 +323,7 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
         # that can be formatted as gray or RGB images
         if show_tensors:
             # Check to see if it is a PIL Image
-            if hasattr(focused_object, "mode") and hasattr(focused_object, "mode"):
+            if hasattr(focused_object, "mode") and hasattr(focused_object, "palette"):
                 import matplotlib.pyplot as plt
                 fig = plt.figure()
                 fig.suptitle(f'PIL-Image: {focused_object_name}', fontsize=20)
@@ -315,7 +361,6 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
                                 to_resize = tensor
 
                             resized = cv2.resize(to_resize, newshape, interpolation=cv2.INTER_NEAREST)
-                            # cv2.imshow(f'Tensor-{event}', resized)
                             to_display = resized
                         else:
                             if is_torch_T:
@@ -324,9 +369,9 @@ def interact(locals, do_traceback=False, ignore_builtins=False, show_tensors=Fal
                                 import numpy as np
                                 to_display = np.expand_dims(tensor, -1)
                         displayable = True
+                    else:
+                        continue
 
-                            # cv2.imshow(f'Tensor-{event}', tensor.unsqueeze(-1).cpu().detach().numpy())
-                    #TODO: Display if enabled
 
                 elif len(tensor.shape) >= 2:
                     print("at least two dimensional")

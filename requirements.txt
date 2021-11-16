@@ -1,1 +1,3 @@
 PySimpleGUI
+fuzzywuzzy
+python-Levenshtein
