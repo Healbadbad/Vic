@@ -22,6 +22,8 @@
 
 # TODO:
 # Dictionary / list explorer
+# Quick stats on a tensor / list
+#   min, max, mean, std, etc...
 
 import PySimpleGUI as sg
 import inspect
@@ -46,7 +48,8 @@ def get_attributes_list(var, ignore_builtins=True):
             continue
 
         if is_callable:
-            callables.append(f"{prop}: {type(getattr(var, prop))}")
+            #callables.append(f"{prop}: {type(getattr(var, prop))}")
+            callables.append(f"{prop}: {type(getattr(var, prop)).__name__:>5}")
         else:
             try:
                 variable_properties.append(f"{prop}: {getattr(var, prop)}")
@@ -117,14 +120,15 @@ def interact(locals, do_traceback=False, ignore_builtins=True, show_tensors=Fals
 
 
     functions_list_key = "functions_list"
-    def generate_layout(focused_object_name, ignore_builtins=False, show_tensors=False):
+    def generate_layout(focused_object_name, focused_object, ignore_builtins=False, show_tensors=False):
         interact_textbox = sg.Input(key='interact-textbox')
         execute_button = sg.Button('Execute', key='execute-button')
         builtins_checkbox = sg.Checkbox("Show Builtins", not ignore_builtins, key="show-builtins", enable_events=True)
         show_tensors_checkbox = sg.Checkbox("Show Tensors", show_tensors, key="show-tensors", enable_events=True)
 
         modules, local_vars, functions = get_locals_buttons(ignore_builtins)
-        props, funs = get_attributes_list(focused_object_name, ignore_builtins)
+        #props, funs = get_attributes_list(focused_object_name, ignore_builtins)
+        props, funs = get_attributes_list(focused_object, ignore_builtins)
         locals_layout = [[sg.Column(modules, key="modules-column"), sg.Column(local_vars, key="local-vars-column"), sg.Column(functions, key='functions-column'),]]
         locals_column = sg.Frame("Local objects", [[sg.Column(locals_layout, scrollable=True, expand_x=True, expand_y=True)]], size=(80,30), expand_x=True, expand_y=True )
 
@@ -159,11 +163,11 @@ def interact(locals, do_traceback=False, ignore_builtins=True, show_tensors=Fals
 
     #  minlen, max()
     detailed_info_height = 20
-    focused_object_name = now_locals_names[-1]
+    focused_object_name = now_locals_names[0]
     focused_object_path = [focused_object_name]
     focused_object = locals[focused_object_name]
 
-    layout = generate_layout(focused_object_name, ignore_builtins, show_tensors)
+    layout = generate_layout(focused_object_name, focused_object, ignore_builtins, show_tensors)
 
     # Create the Window
     font_size = 10
@@ -205,8 +209,11 @@ def interact(locals, do_traceback=False, ignore_builtins=True, show_tensors=Fals
             # Retrieve function signature
             try:
                 #sig = inspect.signature(getattr(locals[focused_object_name], selected_function_name))
+                print("full arg spec:", inspect.getfullargspec(getattr(focused_object, selected_function_name)))
                 sig = inspect.signature(getattr(focused_object, selected_function_name))
-            except:
+            except Exception as e:
+                print("Error getting signature:", e)
+
                 sig = " -- Unable to retrieve signature "
 
             displaystr = f"{path_str}.{selected_function_name}" + str(sig) + "\n\n" + str(docstr)
@@ -219,7 +226,7 @@ def interact(locals, do_traceback=False, ignore_builtins=True, show_tensors=Fals
             ignore_builtins = not ignore_builtins
             print("ignore builtins is now: ", ignore_builtins)
             old_docstring = window['docstring'].DefaultText
-            new_layout = generate_layout(focused_object_name, ignore_builtins)
+            new_layout = generate_layout(focused_object_name, focused_object, ignore_builtins, show_tensors)
             new_window = sg.Window('Window Title', new_layout, return_keyboard_events=False)
             window.Close()
             window = new_window
@@ -341,6 +348,7 @@ def interact(locals, do_traceback=False, ignore_builtins=True, show_tensors=Fals
                 if hasattr(locals[event], "device"):
                     is_torch_T = True
 
+
                 tensor = locals[event]
                 print(f"tensor: {event}")
                 # is a torch Tensor
@@ -377,9 +385,14 @@ def interact(locals, do_traceback=False, ignore_builtins=True, show_tensors=Fals
                     print("at least two dimensional")
                     if 1 in tensor.shape or 3 in tensor.shape:
                         print("correct # of channels")
-                        if tensor.shape[1] == 3 or tensor.shape[1] == 1:
-                            #cv2.imshow(f'Tensor-{event}', tensor.squeeze(0).permute((1,2,0)).cpu().detach().numpy())
+                        # TODO: Verify correctness
+                        if len(tensor.shape) == 4 and tensor.shape[1] == 3 or tensor.shape[1] == 1:
                             to_display = tensor.squeeze(0).permute((1,2,0)).cpu().detach().numpy()
+                            displayable = True
+                        elif len(tensor.shape) == 3 and tensor.shape[2] == 3:
+                            #to_display = tensor.permute((2,0,1)).cpu().detach().numpy() # Torch
+                            #to_display = tensor.transpose((2,0,1))
+                            to_display = tensor
                             displayable = True
                 else:
                     continue
