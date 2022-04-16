@@ -34,6 +34,7 @@ from fuzzywuzzy import fuzz
 sg.theme('DarkAmber')   # Add a touch of color
 
 def get_attributes_list(var, ignore_builtins=True):
+    ''' returns a list of attributes in the format name: value '''
     variable_properties = []
     callables = []
     prop_values = []
@@ -57,6 +58,9 @@ def get_attributes_list(var, ignore_builtins=True):
                 variable_properties.append(f"{prop}: {Exception}")
 
     return variable_properties, callables
+
+def get_displayable_attributes_list(var, ignore_builtins=True):
+    pass
 
 def interact(locals, do_traceback=False, ignore_builtins=True, show_tensors=False):
     """ Open a PySimpleGUI window displaying
@@ -139,8 +143,9 @@ def interact(locals, do_traceback=False, ignore_builtins=True, show_tensors=Fals
         
 
         functions_listbox_size = (50, 30)
+        functions_right_click_menu = ['Func', ['inspect-function']]
         functions_searchbox = sg.Input(key='functions-search', enable_events=True)
-        functions_listbox = sg.Listbox(funs, size=functions_listbox_size, key=functions_list_key, enable_events=True)
+        functions_listbox = sg.Listbox(funs, size=functions_listbox_size, right_click_menu=functions_right_click_menu, key=functions_list_key, enable_events=True)
 
         docstring_textbox_size = (80, detailed_info_height)
         docstring_textbox = sg.Multiline("docstring will be displayed here", size=docstring_textbox_size, key='docstring')
@@ -290,6 +295,31 @@ def interact(locals, do_traceback=False, ignore_builtins=True, show_tensors=Fals
                 print("No attribute selected")
                 continue
             attribute_name = values['attributes'][0].split(':')[0]
+            focused_object_path.append(attribute_name)
+            focused_object = locals[focused_object_path[0]]
+            path_str = focused_object_path[0]
+            if len(focused_object_path) > 1:
+                for attr_name in focused_object_path[1:]:
+                    focused_object = getattr(focused_object, attr_name)
+                    path_str = f"{path_str}.{attr_name}"
+
+            # Only update These if the buttons were selected
+            attributes_list, functions = get_attributes_list(focused_object, ignore_builtins)
+            window['attributes'].update(attributes_list)
+            window['functions_list'].update(functions)
+
+            #window['var_name'].update(f"{focused_object_name}.{attribute}")
+            window['var_name'].update(path_str)
+
+            var_val_str = str(focused_object)
+            window['var_value'].update(var_val_str)
+            continue
+        if event == "inspect-function":
+            # focused_object_name = event
+            if len(values[functions_list_key]) < 1:
+                print("No attribute selected")
+                continue
+            attribute_name = values[functions_list_key][0].split(':')[0]
             focused_object_path.append(attribute_name)
             focused_object = locals[focused_object_path[0]]
             path_str = focused_object_path[0]
