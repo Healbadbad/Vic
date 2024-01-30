@@ -53,7 +53,16 @@ def get_attributes_list(var, ignore_builtins=True):
             callables.append(f"{prop}: {type(getattr(var, prop)).__name__:>5}")
         else:
             try:
-                variable_properties.append(f"{prop}: {getattr(var, prop)}")
+                # Switch specific representations depending on the type 
+                # Checks that the variable is a tensor or numpy array, prints 
+                # the shape of the tensor
+
+                if hasattr(getattr(var, prop), 'shape'):
+                # if isinstance(getattr(var, prop), torch.Tensor):
+                    typestr = type(getattr(var, prop)).__name__
+                    variable_properties.append(f"{prop}: {typestr} {getattr(var, prop).shape}")
+                else:
+                    variable_properties.append(f"{prop}: {getattr(var, prop)}")
             except Exception as e:
                 variable_properties.append(f"{prop}: {Exception}")
 
@@ -112,7 +121,8 @@ def interact(locals, do_traceback=False, ignore_builtins=True, show_tensors=Fals
                 continue
 
             # Torch and numpy inspection tools 
-            if hasattr(locals[local_var], 'T'):
+            if hasattr(locals[local_var], 'T') and hasattr(locals[local_var], 'shape'):
+
                 # Assumed to be a torch tensor
                 # tensor_shape = str(locals[local_var].shape)
                 local_vars.append([sg.Button(f"{local_var} : {locals[local_var].shape}", key=local_var)]) # onclick = property_click_fun
@@ -377,6 +387,7 @@ def interact(locals, do_traceback=False, ignore_builtins=True, show_tensors=Fals
                 is_torch_T = False
                 if hasattr(locals[event], "device"):
                     is_torch_T = True
+                
 
 
                 tensor = locals[event]
